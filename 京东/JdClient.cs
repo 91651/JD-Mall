@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -15,7 +16,16 @@ namespace 京东
 
         public JdClient(HttpClient httpClient)
         {
-            CookieContainer = new CookieContainer();
+            var cookieFile = Path.Combine("cookie.bin");
+            if (File.Exists(cookieFile))
+            {
+                CookieContainer = Cookie.Read(Path.Combine("cookie.bin"));
+            }
+            else
+            {
+                CookieContainer = new CookieContainer();
+            }
+            
             HttpClientHandler handler = new HttpClientHandler() { CookieContainer = CookieContainer };
             HttpClient client = new HttpClient(handler);
             Client = client;

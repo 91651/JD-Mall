@@ -27,13 +27,8 @@ namespace 京东
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            var cookieFile = Path.Combine("cookie.bin");
-            if (File.Exists(cookieFile))
-            {
-                _jdClient.CookieContainer = Cookie.Read(Path.Combine("cookie.bin"));
-                await ValidateCookies();
-            }
-            
+            await ValidateCookies();
+
 
             await GetLoginPageAsync();
             await GetQrCode();
@@ -64,6 +59,8 @@ namespace 京东
             }
 
             Cookie.Write(Path.Combine("cookie.bin"), _jdClient.CookieContainer);
+
+
 
             var userName = await GetUserName();
             _logger.LogInformation(userName);
