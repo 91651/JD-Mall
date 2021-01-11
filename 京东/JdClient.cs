@@ -11,7 +11,7 @@ namespace 京东
     public class JdClient
     {
         public HttpClient Client { get; private set; }
-        public CookieContainer CookieContainer { get; private set; }
+        public CookieContainer CookieContainer { get; set; }
 
         public JdClient(HttpClient httpClient)
         {

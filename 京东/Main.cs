@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,13 @@ namespace 京东
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
+            var cookieFile = Path.Combine("cookie.bin");
+            if (File.Exists(cookieFile))
+            {
+                _jdClient.CookieContainer = Cookie.Read(Path.Combine("cookie.bin"));
+                await ValidateCookies();
+            }
+            
 
             await GetLoginPageAsync();
             await GetQrCode();
@@ -54,6 +62,9 @@ namespace 京东
             {
                 _logger.LogInformation("登录失败，请用网页打开京东验证是否可以正常登录。");
             }
+
+            Cookie.Write(Path.Combine("cookie.bin"), _jdClient.CookieContainer);
+
             var userName = await GetUserName();
             _logger.LogInformation(userName);
             var skuTitle = await GetSkuTitle();
@@ -118,7 +129,7 @@ namespace 京东
 
         async Task RequestUrl()
         {
-
+            
         }
 
         async Task GetSeckillUrl()
