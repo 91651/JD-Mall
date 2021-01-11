@@ -1,8 +1,7 @@
-﻿using System.Net;
-using System.Net.Http;
-using System.Text;
+﻿using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace 京东
 {
@@ -21,6 +20,11 @@ namespace 京东
                 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
                 services.AddHttpClient<JdClient>();
                 services.AddHostedService<Main>();
+
+            }).ConfigureLogging(logging =>
+            {
+                logging.AddConsole();
+                logging.AddFile("app.log");
             });
     }
 }
