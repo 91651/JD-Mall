@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -17,7 +18,9 @@ namespace 京东
         // private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger _logger;
         private readonly JdClient _jdClient;
+        // 待抢购商品
         private string SkuId = "10023427418705"; //"100012043978"
+        private DateTime time = DateTime.Parse("9:59:59");
 
         public Main(ILogger<Main> logger, JdClient jdClient)
         {
@@ -27,46 +30,69 @@ namespace 京东
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            await ValidateCookies();
-
-
-            await GetLoginPageAsync();
-            await GetQrCode();
-            var hasTicket = false;
-            while (!hasTicket)
+            var isLogin = await ValidateCookies();
+            if (!isLogin)
             {
-                await Task.Delay(TimeSpan.FromSeconds(2));
-                var r = await GetTicket();
-                _logger.LogInformation(r.Data);
-                if (r.Status == 302)
+                _logger.LogInformation("开始用户登录...");
+                await GetLoginPageAsync();
+                await GetQrCode();
+                var qrfile = new ProcessStartInfo(Path.Combine("qr_code.png"));
+                var p = new System.Diagnostics.Process();
+                qrfile.UseShellExecute = true;
+                qrfile.WindowStyle = ProcessWindowStyle.Normal;
+                p.StartInfo = qrfile;
+                p.Start();
+                _logger.LogInformation($"已经自动打开登录二维码。没有看到二维码可手动打开： {Path.Combine("qr_code.png")}");
+                var hasTicket = false;
+                while (!hasTicket)
                 {
-                    await GetQrCode();
-                    continue;
+                    await Task.Delay(TimeSpan.FromSeconds(2));
+                    var r = await GetTicket();
+                    _logger.LogInformation(r.Data);
+                    if (r.Status == 302)
+                    {
+                        await GetQrCode();
+                        continue;
+                    }
+                    if (r.Status != 200)
+                    {
+                        continue;
+                    }
+
+                    await ValidateTicket(r.Data);
+                    hasTicket = true;
+
                 }
-                if (r.Status != 200)
+                var cookieValid = await ValidateCookies();
+                if (!cookieValid)
                 {
-                    continue;
+                    _logger.LogInformation("登录失败，请用网页打开京东验证是否可以正常登录。");
+                    _logger.LogInformation("你可以重新运行本程序");
+                    return;
                 }
-
-                await ValidateTicket(r.Data);
-                hasTicket = true;
-
+                Cookie.Write(Path.Combine("cookie.bin"), _jdClient.CookieContainer);
             }
-            var cookieValid = await ValidateCookies();
-            if (!cookieValid)
-            {
-                _logger.LogInformation("登录失败，请用网页打开京东验证是否可以正常登录。");
-            }
+            _logger.LogInformation("用户已经处于登录状态。");
 
-            Cookie.Write(Path.Combine("cookie.bin"), _jdClient.CookieContainer);
-
-
-
+           
             var userName = await GetUserName();
             _logger.LogInformation(userName);
             var skuTitle = await GetSkuTitle();
             _logger.LogInformation(skuTitle);
             await GetSeckillUrl();
+
+
+            var localTime = DateTime.Now;
+            var jdTime = await GetJdTime();
+
+            _logger.LogInformation($"服务器当前时间： {jdTime}，本地时间： {localTime}");
+            var t = new Timer(async (object state) => {
+                if (jdTime + (DateTime.Now - localTime) >= time)
+                {
+                    _logger.LogInformation($"已到抢购时间，开始尝试");
+                    await GetSeckillUrl();
+                }
+            }, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(500));
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
@@ -155,6 +181,15 @@ namespace 京东
             var resp = await _jdClient.Client.GetStringAsync(url);
             var title = Regex.Match(resp, "<title>(.*)</title>", RegexOptions.Singleline).Groups[1].Value;
             return title;
+        }
+
+        async Task<DateTime> GetJdTime()
+        {
+            var url = "https://a.jd.com//ajax/queryServerData.html";
+            var resp = await _jdClient.Client.GetStringAsync(url);
+            var json = JObject.Parse(resp);
+            var time = DateTimeOffset.FromUnixTimeMilliseconds(json.Value<long>("serverTime")).LocalDateTime;
+            return time;
         }
     }
 }
